@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { SideNav } from "@/components/SideNav";
 import { SakuraShader } from "@/components/SakuraShader";
+import sakuraBg from "@/assets/sakura-bg.png.asset.json";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
