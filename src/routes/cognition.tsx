@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SideNav } from "@/components/SideNav";
+import { SystemHealthHeader } from "@/components/SystemHealthHeader";
+import { useMissionControl } from "@/hooks/useMissionControl";
 
 export const Route = createFileRoute("/cognition")({
   head: () => ({
@@ -16,159 +18,156 @@ export const Route = createFileRoute("/cognition")({
 });
 
 function Cognition() {
+  const { latest } = useMissionControl();
+  const c = latest.cognition;
+
+  const rootCause = c?.root_cause || "thermal";
+  const narrative = c?.root_cause_narrative || "ROOT CAUSE: thermal (critical) -> power (critical) -> life_support (degraded). Address thermal, not the downstream symptoms.";
+  const anomaly = c?.anomaly_detected ?? false;
+  const novelty = c?.novelty_score ?? 0.12;
+  const recAction = c?.recommended_action || "PROCEED_SLOW";
+
+  // Subsystem states from HDC causal graph
+  const subStates = c?.subsystem_states || {
+    thermal: "failed",
+    power: "critical",
+    life_support: "degraded",
+  };
+
   return (
-    <div className="bg-surface text-on-surface h-screen w-screen overflow-hidden flex font-body-md text-body-md">
+    <div className="bg-paper-surface text-on-surface h-screen w-screen overflow-hidden flex font-body-md selection:bg-lacquer-red selection:text-white">
       <SideNav />
-      <div className="flex-1 ml-64 flex flex-col h-full relative">
+      <div className="flex-1 md:ml-64 flex flex-col h-full relative overflow-hidden">
+        {/* Top Live Health Header */}
+        <SystemHealthHeader title="Hyperdimensional Cognition & Causal Reasoning" />
 
-<header className="bg-paper-surface dark:bg-ink-charcoal fixed top-0 right-0 w-[calc(100%-16rem)] border-b border-on-surface-variant flex items-center justify-between px-gutter py-4 h-16 z-10">
-<div className="flex items-center gap-4">
-<span className="font-label-caps text-label-caps text-on-surface font-bold">ARMSTRONG PROTOCOL</span>
-</div>
-<div className="flex items-center gap-6">
-<div className="hidden lg:flex items-center gap-6 mr-4">
-<a className="font-label-caps text-label-caps text-on-surface-variant hover:text-lacquer-red transition-all" href="#">NOMINAL</a>
-<a className="font-label-caps text-label-caps text-on-surface-variant hover:text-lacquer-red transition-all" href="#">STABLE</a>
-<a className="font-label-caps text-label-caps text-on-surface-variant hover:text-lacquer-red transition-all" href="#">ACTIVE</a>
-</div>
-<button className="font-label-caps text-label-caps bg-transparent border border-lacquer-red text-lacquer-red px-4 py-1.5 rounded opacity-80 hover:opacity-100 transition-opacity">
-                    EMERGENCY STOP
-                </button>
-<div className="flex items-center gap-3">
-<button className="text-on-surface-variant hover:text-lacquer-red transition-colors duration-150">
-<span className="material-symbols-outlined" data-icon="notifications_active">notifications_active</span>
-</button>
-<button className="text-on-surface-variant hover:text-lacquer-red transition-colors duration-150">
-<span className="material-symbols-outlined" data-icon="account_circle">account_circle</span>
-</button>
-</div>
-</div>
-</header>
+        <main className="flex-1 p-margin-desktop overflow-y-auto custom-scrollbar">
+          
+          {/* Causal Graph Root Cause Alert Banner */}
+          <div className="bg-surface-container-lowest border border-lacquer-red/40 rounded-xl p-gutter mb-gutter relative overflow-hidden shadow-sm">
+            <div className="absolute inset-0 bg-lacquer-red/5"></div>
+            <div className="relative flex items-start gap-4">
+              <div className="text-lacquer-red pt-1">
+                <span className="material-symbols-outlined text-3xl">account_tree</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="font-label-caps text-xs px-2 py-0.5 bg-lacquer-red text-white rounded font-bold">
+                    ROOT-CAUSE GRAPH TRAVERSAL
+                  </span>
+                  <span className="text-xs font-mono text-on-surface-variant">
+                    Novelty: {(novelty * 100).toFixed(1)}% | Anomaly: {anomaly ? "DETECTED" : "NOMINAL"}
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-ink-charcoal mb-1">{narrative}</h2>
+                <p className="font-label-caps text-xs text-on-surface-variant">
+                  Causal graph directs intervention to upstream root ({rootCause.toUpperCase()}) rather than suppressing symptoms.
+                </p>
+              </div>
+            </div>
+          </div>
 
-<main className="flex-1 mt-16 p-margin-desktop overflow-y-auto bg-surface">
+          {/* Subsystem Cascade Flow */}
+          <div className="mb-gutter flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            {/* Step 1: Thermal */}
+            <div className="w-full md:flex-1 bg-surface-container-lowest border border-lacquer-red/40 rounded-xl p-4 relative shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-label-caps text-xs text-on-surface-variant uppercase font-bold">Thermal Subsystem</h3>
+                <span className="text-[10px] font-mono text-lacquer-red font-bold px-1.5 py-0.5 bg-lacquer-red/10 rounded">
+                  {subStates.thermal || "CRITICAL"}
+                </span>
+              </div>
+              <div className="font-mono text-sm font-bold text-lacquer-red">RADIATOR LOOP 2: 0.4 bar/min</div>
+              <div className="text-[11px] text-on-surface-variant mt-1">Status: Primary Root Trigger</div>
+            </div>
 
-<div className="bg-surface-container-low border border-error/50 rounded-xl p-gutter mb-gutter relative overflow-hidden">
-<div className="absolute inset-0 bg-error/5"></div>
-<div className="relative flex items-start gap-4">
-<div className="text-error pulse-critical pt-1">
-<span className="material-symbols-outlined text-headline-lg" data-icon="account_tree">account_tree</span>
-</div>
-<div>
-<h2 className="text-headline-md font-headline-md text-error mb-1">ROOT CAUSE: thermal (critical) -&gt; power (critical) -&gt; life_support (degraded)</h2>
-<p className="font-label-caps text-label-caps text-on-surface-variant">Address thermal, not the downstream symptoms.</p>
-</div>
-</div>
-</div>
+            <div className="text-on-surface-variant/40 hidden md:block">
+              <span className="material-symbols-outlined text-xl">arrow_forward</span>
+            </div>
 
-<div className="mb-gutter flex items-center justify-between gap-4">
+            {/* Step 2: Power */}
+            <div className="w-full md:flex-1 bg-surface-container-lowest border border-lacquer-red/30 rounded-xl p-4 relative shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-label-caps text-xs text-on-surface-variant uppercase font-bold">Power Subsystem</h3>
+                <span className="text-[10px] font-mono text-lacquer-red font-bold px-1.5 py-0.5 bg-lacquer-red/10 rounded">
+                  {subStates.power || "CRITICAL"}
+                </span>
+              </div>
+              <div className="font-mono text-sm font-bold text-ink-charcoal">SOLAR ARRAY BUS: 22.1V</div>
+              <div className="text-[11px] text-on-surface-variant mt-1">Coupling: Overheating throttle</div>
+            </div>
 
-<div className="flex-1 bg-surface-container-low border border-error/50 rounded-xl p-gutter relative group">
-<div className="absolute top-0 right-0 p-2 text-error pulse-critical">
-<span className="material-symbols-outlined text-sm" data-icon="warning">warning</span>
-</div>
-<h3 className="font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase">Thermal</h3>
-<div className="font-telemetry-data text-telemetry-data text-error">TEMP: +82.4°C</div>
-</div>
+            <div className="text-on-surface-variant/40 hidden md:block">
+              <span className="material-symbols-outlined text-xl">arrow_forward</span>
+            </div>
 
-<div className="text-on-surface-variant/50">
-<span className="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
-</div>
+            {/* Step 3: Life Support */}
+            <div className="w-full md:flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 relative shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-label-caps text-xs text-on-surface-variant uppercase font-bold">Life Support (ECLSS)</h3>
+                <span className="text-[10px] font-mono text-amber-700 font-bold px-1.5 py-0.5 bg-amber-500/10 rounded">
+                  {subStates.life_support || "DEGRADED"}
+                </span>
+              </div>
+              <div className="font-mono text-sm font-bold text-ink-charcoal">CABIN O2_PP: 18.2 kPa</div>
+              <div className="text-[11px] text-on-surface-variant mt-1">Coupling: Power load shedding</div>
+            </div>
+          </div>
 
-<div className="flex-1 bg-surface-container-low border border-error/50 rounded-xl p-gutter relative">
-<div className="absolute top-0 right-0 p-2 text-error pulse-critical">
-<span className="material-symbols-outlined text-sm" data-icon="warning">warning</span>
-</div>
-<h3 className="font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase">Power</h3>
-<div className="font-telemetry-data text-telemetry-data text-error">BUS_V: 22.1V</div>
-</div>
+          {/* HDC Similarity Memory & Explanation */}
+          <div className="grid grid-cols-12 gap-gutter">
+            <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+              <h3 className="font-label-caps text-xs text-ink-charcoal uppercase font-bold tracking-wider mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-lacquer-red">memory</span>
+                10,000-D Hyperdimensional Memory Retrieval
+              </h3>
 
-<div className="text-on-surface-variant/50">
-<span className="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
-</div>
+              <div className="flex flex-col gap-3 font-mono text-xs">
+                <div className="p-3 bg-surface-container-low rounded border border-outline-variant/40 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-ink-charcoal">Case #4092: Radiator Leak at 40m</div>
+                    <div className="text-[11px] text-on-surface-variant">Recommended Action: RECONFIGURE_POWER</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-emerald-700">94.8% Match</div>
+                    <div className="text-[10px] text-on-surface-variant">Success: 98%</div>
+                  </div>
+                </div>
 
-<div className="flex-1 bg-surface-container-low border border-tertiary-fixed-dim/50 rounded-xl p-gutter relative">
-<div className="absolute top-0 right-0 p-2 text-tertiary-fixed-dim">
-<span className="material-symbols-outlined text-sm" data-icon="info">info</span>
-</div>
-<h3 className="font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase">Life Support</h3>
-<div className="font-telemetry-data text-telemetry-data text-tertiary-fixed-dim">O2_PP: 18.2 kPa</div>
-</div>
-</div>
+                <div className="p-3 bg-surface-container-low rounded border border-outline-variant/40 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-ink-charcoal">Case #2180: Thruster Plume Impingement</div>
+                    <div className="text-[11px] text-on-surface-variant">Recommended Action: HOLD_POSITION</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-ink-charcoal">68.2% Match</div>
+                    <div className="text-[10px] text-on-surface-variant">Success: 92%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-<div className="grid grid-cols-12 gap-gutter">
+            <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="font-label-caps text-xs text-ink-charcoal uppercase font-bold tracking-wider mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-lacquer-red">psychology</span>
+                  Cognition Agent Output
+                </h3>
+                <div className="text-sm font-mono text-ink-charcoal leading-relaxed p-4 bg-surface-container-low rounded border border-outline-variant/40">
+                  {c?.explanation || `Cognition engine evaluates 10,000-D situation vector against mission flight envelope. Anomaly score: ${(novelty * 100).toFixed(1)}%. Recommendation: ${recAction}.`}
+                </div>
+              </div>
 
-<div className="col-span-12 lg:col-span-6 bg-surface-container-low border border-outline-variant rounded-xl p-gutter">
-<h3 className="text-headline-md font-headline-md text-on-surface mb-6 flex items-center gap-2">
-<span className="material-symbols-outlined text-lacquer-red text-sm" data-icon="analytics">analytics</span>
-                        Situation Vector Influence
-                    </h3>
-<div className="h-8 w-full bg-surface-container-high flex rounded overflow-hidden mb-6 border border-outline-variant">
-<div className="bg-lacquer-red/80 h-full" style={{width: "15%"}} title="Pose: 15%"></div>
-<div className="bg-moss-accent/80 h-full" style={{width: "45%"}} title="Anomaly: 45%"></div>
-<div className="bg-lacquer-red/50 h-full" style={{width: "30%"}} title="Mission Phase: 30%"></div>
-<div className="bg-tertiary-fixed-dim/80 h-full" style={{width: "10%"}} title="Uncertainty: 10%"></div>
-</div>
-<div className="grid grid-cols-2 gap-4">
-<div className="flex items-center gap-2">
-<div className="w-3 h-3 rounded-sm bg-lacquer-red/80"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">Pose (15%)</span>
-</div>
-<div className="flex items-center gap-2">
-<div className="w-3 h-3 rounded-sm bg-moss-accent/80"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">Anomaly (45%)</span>
-</div>
-<div className="flex items-center gap-2">
-<div className="w-3 h-3 rounded-sm bg-lacquer-red/50"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">Mission Phase (30%)</span>
-</div>
-<div className="flex items-center gap-2">
-<div className="w-3 h-3 rounded-sm bg-tertiary-fixed-dim/80"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">Uncertainty (10%)</span>
-</div>
-</div>
-</div>
+              <div className="mt-4 pt-4 border-t border-outline-variant/60 flex justify-between items-center text-xs font-mono">
+                <span className="text-on-surface-variant">Selected Plan: <strong className="text-lacquer-red">{recAction}</strong></span>
+                <span className="text-emerald-700 font-bold">Confidence: 94.2%</span>
+              </div>
+            </div>
+          </div>
 
-<div className="col-span-12 lg:col-span-6 bg-surface-container-low border border-outline-variant rounded-xl p-gutter">
-<h3 className="text-headline-md font-headline-md text-on-surface mb-6 flex items-center gap-2">
-<span className="material-symbols-outlined text-lacquer-red text-sm" data-icon="memory">memory</span>
-                        k-NN Similarity Search
-                    </h3>
-<div className="space-y-3">
-<div className="bg-surface border border-outline-variant rounded p-3 flex justify-between items-center group hover:border-lacquer-red/50 transition-colors">
-<div className="flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-lacquer-red">98.2% Similarity</span>
-<span className="font-label-caps text-label-caps text-on-surface">LEO DOCKING REF-A2</span>
-</div>
-<div className="text-right flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-on-surface-variant">Override</span>
-<span className="font-label-caps text-label-caps text-lacquer-red">PROCEED_SLOW</span>
-</div>
-</div>
-<div className="bg-surface border border-outline-variant rounded p-3 flex justify-between items-center group hover:border-lacquer-red/50 transition-colors">
-<div className="flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-lacquer-red/80">94.5% Similarity</span>
-<span className="font-label-caps text-label-caps text-on-surface">THERMAL_VENT_LOCK</span>
-</div>
-<div className="text-right flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-on-surface-variant">Override</span>
-<span className="font-label-caps text-label-caps text-lacquer-red">MANUAL_VENT</span>
-</div>
-</div>
-<div className="bg-surface border border-outline-variant rounded p-3 flex justify-between items-center group hover:border-lacquer-red/50 transition-colors">
-<div className="flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-lacquer-red/60">89.1% Similarity</span>
-<span className="font-label-caps text-label-caps text-on-surface">SENSOR_STALE_OOD</span>
-</div>
-<div className="text-right flex flex-col gap-1">
-<span className="font-label-caps text-label-caps text-on-surface-variant">Override</span>
-<span className="font-label-caps text-label-caps text-lacquer-red">REBOOT_V1</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</main>
-</div>
+        </main>
+      </div>
     </div>
   );
 }

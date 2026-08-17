@@ -1,7 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { startOrchestrator, runScenario } from "@/lib/api";
+import { useState } from "react";
 
-const BRAND_MARK =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAu2A7s5WC1UFBZuwyw0i4gi9gpIohi9zxgniq9uUguHVbdD-dgSezK_z66YrRSmHOETD4_6YK5TN-hcC2vbe18pXBwLh4jI9FKzfivTgslHHe1b_x8akniyUrZvd3H_WdITZ6ksp7ihIpWwbNXI3foVA8k2iy7agZeVYoMv_IWYHApMAFjAfy3Qe-gk1A4v0HQhjjiBuPRxoGSqk07iE4Y_8lwKDZ6n5R2LSShUucNe0G4tiIBfZMRH09FKb834T_yCg";
+const BRAND_MARK = "/faraway-logo.png";
 
 const LINKS = [
   { to: "/", label: "Home", icon: "home" },
@@ -15,19 +16,38 @@ const LINKS = [
 ] as const;
 
 export function SideNav() {
+  const navigate = useNavigate();
+  const [initiating, setInitiating] = useState(false);
+
+  const handleInitiateProtocol = async () => {
+    setInitiating(true);
+    try {
+      await startOrchestrator();
+      await runScenario("nominal", 5.0);
+      navigate({ to: "/overview" });
+    } catch (e) {
+      console.error(e);
+      navigate({ to: "/overview" });
+    } finally {
+      setInitiating(false);
+    }
+  };
+
   return (
     <nav className="bg-paper-surface h-screen w-64 fixed left-0 top-0 border-r border-on-surface-variant flex flex-col py-margin-desktop z-50">
-      <div className="px-gutter mb-12 flex flex-col items-start gap-4">
-        <img
-          alt="SYMBIOSIS brand mark"
-          className="w-16 h-auto grayscale opacity-80 mix-blend-multiply"
-          src={BRAND_MARK}
-        />
+      <div className="px-gutter mb-6 flex flex-col items-start gap-3">
+        <Link to="/" className="block hover:opacity-90 transition-opacity">
+          <img
+            alt="FARAWAY brand mark"
+            className="w-48 h-auto rounded-md shadow-md border border-outline-variant/60 hover:scale-105 transition-transform"
+            src={BRAND_MARK}
+          />
+        </Link>
         <div>
-          <h1 className="font-headline-md text-headline-md text-lacquer-red tracking-widest uppercase">
+          <h1 className="font-headline-md text-headline-md font-bold text-lacquer-red tracking-widest uppercase">
             SYMBIOSIS
           </h1>
-          <p className="font-label-caps text-label-caps text-on-surface-variant mt-1">
+          <p className="font-label-caps text-label-caps text-on-surface-variant mt-0.5 font-bold tracking-wider text-xs">
             MISSION CONTROL
           </p>
         </div>
@@ -51,10 +71,16 @@ export function SideNav() {
         ))}
       </div>
 
-      <div className="px-gutter mt-auto pt-8 border-t border-on-surface-variant/30">
-        <button className="w-full bg-lacquer-red text-paper-surface font-label-caps text-label-caps py-3 uppercase tracking-widest hover:bg-primary transition-colors flex items-center justify-center gap-2">
-          INITIATE PROTOCOL
-          <span className="material-symbols-outlined text-[16px]">terminal</span>
+      <div className="px-gutter mt-auto pt-6 border-t border-on-surface-variant/30">
+        <button
+          onClick={handleInitiateProtocol}
+          disabled={initiating}
+          className="w-full bg-lacquer-red text-paper-surface font-label-caps text-label-caps py-3 uppercase tracking-widest hover:bg-primary transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg font-bold disabled:opacity-50 active:scale-95"
+        >
+          {initiating ? "INITIALIZING..." : "INITIATE PROTOCOL"}
+          <span className="material-symbols-outlined text-[16px]">
+            {initiating ? "hourglass_empty" : "terminal"}
+          </span>
         </button>
       </div>
     </nav>

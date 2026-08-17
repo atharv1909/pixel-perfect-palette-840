@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SideNav } from "@/components/SideNav";
+import { SystemHealthHeader } from "@/components/SystemHealthHeader";
+import { useMissionControl } from "@/hooks/useMissionControl";
+import { sendHumanOverride } from "@/lib/api";
+import { useState } from "react";
 
 export const Route = createFileRoute("/overview")({
   head: () => ({
@@ -16,277 +20,231 @@ export const Route = createFileRoute("/overview")({
 });
 
 function Overview() {
+  const { latest, events, decisions, status } = useMissionControl();
+  const [stopLoading, setStopLoading] = useState(false);
+
+  const p = latest.perception;
+  const c = latest.cognition;
+  const a = latest.action;
+  const cons = latest.consensus;
+
+  // Calculate live range to target from position vector t
+  let rangeMeters = 24.18;
+  if (p && Array.isArray(p.t) && p.t.length >= 3) {
+    rangeMeters = Math.sqrt(p.t[0] ** 2 + p.t[1] ** 2 + p.t[2] ** 2);
+  }
+
+  // Jensen Gain & Confidence calculation
+  const jg = p?.jensen_gain ?? 2.82;
+  const confLevel = p?.confidence_level ?? "moderate";
+  const confPct = Math.max(10, Math.min(99, Math.round(100 - jg * 3.2)));
+
+  // Autonomy level
+  const autoLevel = cons?.required_autonomy_level ?? "AUTONOMOUS";
+  const currentAction = cons?.final_action ?? a?.primary_action ?? "PROCEED_SLOW";
+
+  const handleEmergencyStop = async () => {
+    setStopLoading(true);
+    try {
+      await sendHumanOverride("reject", "hold_position", "Manual Emergency Stop triggered from Overview Dashboard");
+    } finally {
+      setStopLoading(false);
+    }
+  };
+
   return (
     <div className="bg-paper-surface text-ink-charcoal font-body-md h-screen w-screen overflow-hidden flex selection:bg-lacquer-red selection:text-white">
       <SideNav />
       <div className="flex-1 flex flex-col md:ml-64 h-full relative overflow-hidden">
+        {/* Live Top Health Header with Green/Red status indicators */}
+        <SystemHealthHeader title="SYMBIOSIS Overview" />
 
-<header className="flex items-center justify-between px-gutter py-4 h-16 z-50 bg-paper-surface border-b border-on-surface-variant shrink-0">
-<div className="flex items-center gap-4">
-<span className="font-headline-md text-headline-md font-bold text-ink-charcoal tracking-tighter uppercase">SYMBIOSIS Mission Control</span>
-</div>
-<div className="flex items-center gap-6">
+        <main className="flex-1 overflow-y-auto p-gutter custom-scrollbar">
+          <div className="max-w-[1600px] mx-auto w-full flex flex-col gap-gutter">
+            
+            {/* Top Telemetry KPI Ribbon */}
+            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              
+              {/* Card 1: Current Action */}
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[130px] shadow-sm">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Current Action</h3>
+                  <span className="text-[10px] font-label-caps px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                    {cons?.consensus_reached ? "CONSENSUS" : "RESOLVED"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-moss-accent text-[28px] animate-pulse">
+                    {currentAction.includes("HOLD") || currentAction.includes("ABORT") ? "error" : "precision_manufacturing"}
+                  </span>
+                  <span className="font-telemetry-lg text-[22px] font-bold text-moss-accent tracking-tight truncate">
+                    {currentAction}
+                  </span>
+                </div>
+                <div className="text-[11px] font-label-caps text-on-surface-variant truncate">
+                  {cons?.reasoning ? cons.reasoning.split("|")[0] : "Nominal proximity approach"}
+                </div>
+              </div>
 
-<div className="flex gap-4 border-r border-on-surface-variant pr-6">
-<button className="text-on-surface-variant hover:text-lacquer-red transition-all p-1.5 rounded-lg group">
-<span className="material-symbols-outlined text-[20px] opacity-100 group-hover:opacity-80">wifi</span>
-</button>
-<button className="text-on-surface-variant hover:text-lacquer-red transition-all p-1.5 rounded-lg group">
-<span className="material-symbols-outlined text-[20px] opacity-100 group-hover:opacity-80">battery_charging_full</span>
-</button>
-<button className="text-on-surface-variant hover:text-lacquer-red transition-all p-1.5 rounded-lg group">
-<span className="material-symbols-outlined text-[20px] opacity-100 group-hover:opacity-80">settings</span>
-</button>
-</div>
+              {/* Card 2: Range to Target */}
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[130px] shadow-sm">
+                <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Range to Target</h3>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-telemetry-lg text-[32px] font-bold text-ink-charcoal tracking-tight font-mono">
+                    {rangeMeters.toFixed(2)}
+                  </span>
+                  <span className="font-telemetry-sm text-on-surface-variant">m</span>
+                </div>
+                <div className="text-[11px] font-label-caps text-on-surface-variant">
+                  Physics Residual: <span className="font-bold text-ink-charcoal">{p?.physics_residual_m?.toFixed(2) ?? "0.00"}m</span>
+                </div>
+              </div>
 
-<button className="bg-error text-white px-4 py-1.5 rounded font-label-caps text-label-caps uppercase tracking-wider hover:bg-red-700 transition-colors border border-outline-variant">
-                    EMERGENCY STOP
-                </button>
+              {/* Card 3: Jensen Gain & Calibrated Bound */}
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex items-center justify-between h-[130px] shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider leading-tight w-28">
+                    Jensen Gain Uncertainty
+                  </h3>
+                  <div className="text-[11px] font-label-caps text-on-surface-variant mt-1">
+                    JG: <span className="font-bold text-ink-charcoal">{jg.toFixed(2)}°</span> ({confLevel})
+                  </div>
+                  <div className="text-[10px] font-label-caps text-lacquer-red">
+                    95% Bound: ≤{p?.calibrated_error_bound_deg?.toFixed(1) ?? "4.9"}°
+                  </div>
+                </div>
+                <div className="relative w-[64px] h-[64px] flex items-center justify-center shrink-0">
+                  <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <path className="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
+                    <path className="text-lacquer-red" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${confPct}, 100`} strokeLinecap="round" strokeWidth="4" />
+                  </svg>
+                  <span className="font-telemetry-sm font-bold text-ink-charcoal z-10">{confPct}%</span>
+                </div>
+              </div>
 
-<div className="w-8 h-8 rounded-full border border-outline-variant overflow-hidden ml-2 cursor-pointer hover:border-lacquer-red transition-colors">
-<img className="w-full h-full object-cover" data-alt="Chief Operator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-wzsaVmUGiXDOdMdiI7Fg2oKyxEELr0qSP6F_Lb4MY_RDrtqGUf0I1C7rZAndfREQpqVJyAAJ37S50xPR9-ScOD1irYkZfpbuGH0wUvke37fnWX_Glh9b649fo8IokyPmIDv6P98oJ_VKxbEzzXvk0B5bViRPzRz02cDd9QOsHbcknbl-M9u4W9PixACFSvqxsLnJXar9rFCspKPP2FyQwpTMLE8hTs6wwTlM8JnMvZLKw_l3RUAn" />
-</div>
-</div>
-</header>
+              {/* Card 4: Required Autonomy Level */}
+              <div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[130px] shadow-sm">
+                <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Required Autonomy Level</h3>
+                <div className={`px-3 py-1.5 rounded self-start flex items-center gap-2 border ${
+                  autoLevel === "AUTONOMOUS" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800" :
+                  autoLevel === "acknowledge" ? "bg-amber-500/10 border-amber-500/30 text-amber-800" :
+                  "bg-lacquer-red/10 border-lacquer-red/30 text-lacquer-red"
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${autoLevel === "AUTONOMOUS" ? "bg-emerald-600" : autoLevel === "acknowledge" ? "bg-amber-600" : "bg-lacquer-red"}`}></span>
+                  <span className="font-telemetry-md font-bold tracking-wider uppercase text-xs">{autoLevel}</span>
+                </div>
+                <div className="text-[10px] font-label-caps text-on-surface-variant truncate">
+                  {cons?.autonomy_reasons && cons.autonomy_reasons.length > 0 ? cons.autonomy_reasons[0] : "All evidence channels in distribution"}
+                </div>
+              </div>
+            </section>
 
-<main className="flex-1 overflow-y-auto p-gutter custom-scrollbar">
-<div className="max-w-[1600px] mx-auto w-full flex flex-col gap-gutter">
+            {/* Trajectory & Visualizer Frame */}
+            <section className="grid grid-cols-1 xl:grid-cols-12 gap-gutter min-h-[440px]">
+              <div className="xl:col-span-8 bg-surface-container-lowest rounded-lg border border-outline-variant flex flex-col overflow-hidden shadow-sm">
+                <div className="px-container-padding py-3 border-b border-outline-variant flex justify-between items-center bg-surface-container">
+                  <h2 className="font-label-caps text-label-caps text-ink-charcoal uppercase tracking-widest flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] opacity-70">scatter_plot</span>
+                    Proximity Trajectory (CWH Frame)
+                  </h2>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-[2px] bg-moss-accent"></span>
+                      <span className="font-telemetry-sm text-on-surface-variant text-xs">Propagated Path</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-[2px] bg-black/30"></span>
+                      <span className="font-telemetry-sm text-on-surface-variant text-xs">Clohessy-Wiltshire Bounds</span>
+                    </div>
+                  </div>
+                </div>
 
-<section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="flex-1 relative bg-surface-container-lowest p-8 flex flex-col border-b border-outline-variant min-h-[280px]">
+                  <div className="absolute top-4 left-8 font-telemetry-sm text-on-surface-variant opacity-60 text-xs font-mono">R-bar (m): {p?.t ? p.t[0].toFixed(2) : "50.00"}</div>
+                  <div className="absolute bottom-6 right-8 font-telemetry-sm text-on-surface-variant opacity-60 text-xs font-mono">V-bar (m): {p?.t ? p.t[1].toFixed(2) : "5.00"}</div>
 
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[120px]">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Current Action</h3>
-<div className="flex items-center gap-3">
-<span className="material-symbols-outlined text-moss-accent text-[28px] pulse-amber">warning</span>
-<span className="font-telemetry-lg text-[24px] font-bold text-moss-accent tracking-tight">PROCEED_SLOW</span>
-</div>
-</div>
+                  <div className="flex-1 border-l border-b border-outline-variant relative w-full h-full">
+                    <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="0" x2="100%" y1="25%" y2="25%" />
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="0" x2="100%" y1="50%" y2="50%" />
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="0" x2="100%" y1="75%" y2="75%" />
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="25%" x2="25%" y1="0" y2="100%" />
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="50%" x2="50%" y1="0" y2="100%" />
+                      <line stroke="rgba(0,0,0,0.06)" strokeWidth="1" x1="75%" x2="75%" y1="0" y2="100%" />
 
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[120px]">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Range to Target</h3>
-<div className="flex items-baseline gap-2">
-<span className="font-telemetry-lg text-[32px] font-bold text-ink-charcoal tracking-tight">24.18</span>
-<span className="font-telemetry-sm text-on-surface-variant">m</span>
-</div>
-</div>
+                      {/* Simulated Trajectory Paths */}
+                      <path d="M 10 180 Q 200 120, 500 40" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1" strokeDasharray="3 3" />
+                      <path d="M 10 180 Q 220 100, 520 20" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1" strokeDasharray="3 3" />
+                      <path d="M 10 180 Q 180 140, 480 60" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1" strokeDasharray="3 3" />
+                      
+                      {/* Active Mean Trajectory */}
+                      <path d="M 10 180 Q 200 120, 500 40" fill="none" stroke="#5C6300" strokeLinecap="round" strokeWidth="3" />
+                      <circle cx="500" cy="40" fill="#5C6300" r="5" />
+                      <circle cx="500" cy="40" fill="none" opacity="0.4" r="14" stroke="#5C6300" strokeWidth="1.5" className="animate-ping" />
+                    </svg>
+                  </div>
+                </div>
 
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex items-center justify-between h-[120px]">
-<div className="flex flex-col gap-1">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider leading-tight w-24">Jensen Gain Confidence</h3>
-</div>
-<div className="relative w-[64px] h-[64px] flex items-center justify-center">
+                <div className="bg-surface-container p-4 flex flex-col justify-between border-t border-outline-variant/60">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-xs">
+                      Active Safety Channel Status
+                    </h3>
+                    <div className="flex items-center gap-3 text-xs font-mono">
+                      <span className={p?.physics_consistent ? "text-emerald-700 font-bold" : "text-rose-600 font-bold"}>
+                        Physics Cross-Check: {p?.physics_consistent ? "CONSISTENT" : "VIOLATION"}
+                      </span>
+                      <span>•</span>
+                      <span className={p?.is_in_distribution ? "text-emerald-700 font-bold" : "text-rose-600 font-bold"}>
+                        OOD: {p?.is_in_distribution ? "IN-DIST" : "OUT-OF-DIST"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-<svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-<path className="text-surface-container-highest" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
-<path className="text-lacquer-red" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray="92.4, 100" strokeLinecap="round" strokeWidth="4" />
-</svg>
-<span className="font-telemetry-sm font-bold text-ink-charcoal z-10">92.4%</span>
-</div>
-</div>
+              {/* Live Decision Event Stream */}
+              <div className="xl:col-span-4 bg-surface-container-lowest rounded-lg border border-outline-variant flex flex-col overflow-hidden shadow-sm">
+                <div className="px-container-padding py-3 border-b border-outline-variant flex justify-between items-center bg-surface-container">
+                  <h2 className="font-label-caps text-label-caps text-ink-charcoal uppercase tracking-widest flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] opacity-70">terminal</span>
+                    Live Decision Ledger
+                  </h2>
+                  <span className="font-mono text-xs text-on-surface-variant">{events.length} events</span>
+                </div>
 
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-container-padding flex flex-col justify-between h-[120px]">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Required Autonomy Level</h3>
-<div className="bg-lacquer-red/10 border border-lacquer-red/30 rounded px-4 py-2 self-start flex items-center gap-2">
-<span className="w-2 h-2 rounded-full bg-lacquer-red"></span>
-<span className="font-telemetry-md font-bold text-lacquer-red tracking-wider">AUTONOMOUS</span>
-</div>
-</div>
-</section>
+                <div className="flex-1 p-3 overflow-y-auto max-h-[360px] custom-scrollbar flex flex-col gap-2 font-mono text-xs">
+                  {events.length === 0 ? (
+                    <div className="text-center py-8 text-on-surface-variant">Waiting for telemetry stream...</div>
+                  ) : (
+                    events.slice(-15).reverse().map((ev, idx) => (
+                      <div key={idx} className="p-2 rounded bg-surface-container-low border border-outline-variant/40 flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] text-on-surface-variant font-bold">
+                          <span className="text-lacquer-red">{ev.channel}</span>
+                          <span>{ev.time}</span>
+                        </div>
+                        <div className="text-ink-charcoal break-words">{ev.summary}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-<section className="grid grid-cols-1 xl:grid-cols-12 gap-gutter min-h-[480px]">
+                <div className="p-3 bg-surface-container border-t border-outline-variant/60">
+                  <button
+                    onClick={handleEmergencyStop}
+                    disabled={stopLoading}
+                    className="w-full bg-lacquer-red text-white py-2.5 rounded font-label-caps text-label-caps uppercase tracking-wider hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-sm font-bold disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">warning</span>
+                    {stopLoading ? "ABORTING..." : "EMERGENCY HOLD / ABORT"}
+                  </button>
+                </div>
+              </div>
+            </section>
 
-<div className="xl:col-span-8 bg-surface-container-lowest rounded-lg border border-outline-variant flex flex-col overflow-hidden">
-<div className="px-container-padding py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container">
-<h2 className="font-label-caps text-label-caps text-ink-charcoal uppercase tracking-widest flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] opacity-70">scatter_plot</span>
-                                Proximity Trajectory (CWH Frame)
-                            </h2>
-<div className="flex gap-3">
-<div className="flex items-center gap-2">
-<span className="w-3 h-[2px] bg-moss-accent"></span>
-<span className="font-telemetry-sm text-on-surface-variant">Mean Path</span>
-</div>
-<div className="flex items-center gap-2">
-<span className="w-3 h-[2px] bg-black/20"></span>
-<span className="font-telemetry-sm text-on-surface-variant">Ensemble</span>
-</div>
-</div>
-</div>
-
-<div className="flex-1 relative bg-surface-container-lowest grid-bg p-8 flex flex-col border-b border-outline-variant">
-
-<div className="absolute top-4 left-8 font-telemetry-sm text-on-surface-variant opacity-60">R-bar (m)</div>
-<div className="absolute bottom-6 right-8 font-telemetry-sm text-on-surface-variant opacity-60">V-bar (m)</div>
-
-<div className="flex-1 border-l border-b border-outline-variant relative w-full h-full">
-<svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
-
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="0" x2="100%" y1="25%" y2="25%" />
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="0" x2="100%" y1="50%" y2="50%" />
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="0" x2="100%" y1="75%" y2="75%" />
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="25%" x2="25%" y1="0" y2="100%" />
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="50%" x2="50%" y1="0" y2="100%" />
-<line stroke="rgba(0,0,0,0.1)" strokeWidth="1" x1="75%" x2="75%" y1="0" y2="100%" />
-
-<path d="M 0 100 Q 200 80, 500 20" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-<path d="M 0 100 Q 220 70, 520 10" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-<path d="M 0 100 Q 180 90, 480 40" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-<path d="M 0 100 Q 250 100, 550 50" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-<path d="M 0 100 Q 150 60, 450 -10" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-<path d="M 0 100 Q 210 85, 510 25" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1" />
-
-<path d="M 0 100 Q 200 80, 500 20" fill="none" stroke="#5C6300" strokeLinecap="round" strokeWidth="3" />
-
-<circle cx="500" cy="20" fill="#5C6300" r="4" />
-<circle cx="500" cy="20" fill="none" opacity="0.5" r="12" stroke="#5C6300" strokeWidth="1" />
-</svg>
-</div>
-</div>
-
-<div className="h-24 bg-surface-container border-t border-outline-variant p-4 flex flex-col justify-between">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-2">Decision Timeline</h3>
-<div className="relative w-full h-[2px] bg-black/10 mt-4 rounded">
-
-<div className="absolute top-[-4px] left-[10%] w-[2px] h-[10px] bg-lacquer-red">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-on-surface-variant text-[10px]">T-120</span>
-</div>
-<div className="absolute top-[-4px] left-[25%] w-[2px] h-[10px] bg-lacquer-red">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-on-surface-variant text-[10px]">T-90</span>
-</div>
-<div className="absolute top-[-4px] left-[40%] w-[2px] h-[10px] bg-moss-accent">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-moss-accent text-[10px]">OOD_1</span>
-</div>
-<div className="absolute top-[-4px] left-[55%] w-[2px] h-[10px] bg-lacquer-red">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-on-surface-variant text-[10px]">T-60</span>
-</div>
-<div className="absolute top-[-4px] left-[70%] w-[2px] h-[10px] bg-lacquer-red">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-on-surface-variant text-[10px]">T-30</span>
-</div>
-<div className="absolute top-[-4px] left-[85%] w-[2px] h-[10px] bg-moss-accent">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-moss-accent text-[10px]">OOD_2</span>
-</div>
-<div className="absolute top-[-4px] left-[95%] w-[2px] h-[10px] bg-lacquer-red">
-<span className="absolute top-4 left-1/2 -translate-x-1/2 font-telemetry-sm text-lacquer-red text-[10px]">NOW</span>
-</div>
-</div>
-</div>
-</div>
-
-<div className="xl:col-span-4 bg-surface-container-lowest rounded-lg border border-outline-variant flex flex-col h-full overflow-hidden">
-<div className="px-container-padding py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container">
-<h2 className="font-label-caps text-label-caps text-ink-charcoal uppercase tracking-widest flex items-center gap-2">
-<span className="material-symbols-outlined text-[18px] opacity-70">receipt_long</span>
-                                Escalation Feed
-                            </h2>
-<span className="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-telemetry-sm text-on-surface-variant">LIVE</span>
-</div>
-<div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-
-<div className="bg-error-container/20 border border-error rounded p-3 flex flex-col gap-2 relative overflow-hidden group">
-<div className="absolute left-0 top-0 bottom-0 w-1 bg-error"></div>
-<div className="flex justify-between items-start pl-2">
-<span className="font-telemetry-sm text-error font-bold">SYS_ERR_09</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-70">[14:08:22]</span>
-</div>
-<p className="font-body-md text-ink-charcoal text-sm pl-2 leading-relaxed">
-                                    Physics cross-check disagrees with vision, residual 4.2m
-                                </p>
-</div>
-
-<div className="bg-surface-container border border-moss-accent rounded p-3 flex flex-col gap-2 relative overflow-hidden group">
-<div className="absolute left-0 top-0 bottom-0 w-1 bg-moss-accent"></div>
-<div className="flex justify-between items-start pl-2">
-<span className="font-telemetry-sm text-moss-accent font-bold">SENS_WARN</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-70">[14:05:10]</span>
-</div>
-<p className="font-body-md text-ink-charcoal text-sm pl-2 leading-relaxed">
-                                    Sensor degradation detected in Lidar-B
-                                </p>
-</div>
-
-<div className="bg-surface-container border border-outline-variant rounded p-3 flex flex-col gap-2 relative overflow-hidden group">
-<div className="absolute left-0 top-0 bottom-0 w-1 bg-lacquer-red"></div>
-<div className="flex justify-between items-start pl-2">
-<span className="font-telemetry-sm text-lacquer-red font-bold">TRAJ_NOMINAL</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-70">[14:02:45]</span>
-</div>
-<p className="font-body-md text-ink-charcoal text-sm pl-2 leading-relaxed text-on-surface-variant">
-                                    Nominal approach vector maintained
-                                </p>
-</div>
-
-<div className="bg-surface-container border border-outline-variant rounded p-3 flex flex-col gap-2 relative overflow-hidden group opacity-60">
-<div className="absolute left-0 top-0 bottom-0 w-1 bg-lacquer-red/20"></div>
-<div className="flex justify-between items-start pl-2">
-<span className="font-telemetry-sm text-on-surface-variant font-bold">MANEUVER_COMP</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-70">[13:58:12]</span>
-</div>
-<p className="font-body-md text-ink-charcoal text-sm pl-2 leading-relaxed text-on-surface-variant">
-                                    Station-keeping burn delta-v achieved.
-                                </p>
-</div>
-</div>
-</div>
-</section>
-
-<section className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-4 flex flex-col gap-4">
-<div className="flex justify-between items-center">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-<span className="material-symbols-outlined text-[16px]">device_thermostat</span>
-                                Thermal
-                            </h3>
-<span className="font-telemetry-md text-lacquer-red">80%</span>
-</div>
-<div className="w-full bg-surface-container-highest h-2 rounded overflow-hidden">
-<div className="bg-lacquer-red h-full rounded" style={{width: "80%"}}></div>
-</div>
-<div className="flex justify-between mt-1">
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">Radiator Temp: 284K</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">NOMINAL</span>
-</div>
-</div>
-
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-4 flex flex-col gap-4">
-<div className="flex justify-between items-center">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-<span className="material-symbols-outlined text-[16px]">bolt</span>
-                                Power
-                            </h3>
-<span className="font-telemetry-md text-lacquer-red">80%</span>
-</div>
-<div className="w-full bg-surface-container-highest h-2 rounded overflow-hidden">
-<div className="bg-lacquer-red h-full rounded" style={{width: "80%"}}></div>
-</div>
-<div className="flex justify-between mt-1">
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">Draw: 4.2 kW</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">NOMINAL</span>
-</div>
-</div>
-
-<div className="bg-surface-container-lowest rounded-lg border border-outline-variant p-4 flex flex-col gap-4">
-<div className="flex justify-between items-center">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-<span className="material-symbols-outlined text-[16px]">air</span>
-                                Life Support
-                            </h3>
-<span className="font-telemetry-md text-lacquer-red">80%</span>
-</div>
-<div className="w-full bg-surface-container-highest h-2 rounded overflow-hidden">
-<div className="bg-lacquer-red h-full rounded" style={{width: "80%"}}></div>
-</div>
-<div className="flex justify-between mt-1">
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">O2 Reserve: 92h</span>
-<span className="font-telemetry-sm text-on-surface-variant opacity-60">NOMINAL</span>
-</div>
-</div>
-</section>
-
-<div className="h-8 w-full shrink-0"></div>
-</div>
-</main>
-</div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

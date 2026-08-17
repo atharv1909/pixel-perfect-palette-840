@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SideNav } from "@/components/SideNav";
+import { SystemHealthHeader } from "@/components/SystemHealthHeader";
+import { useMissionControl } from "@/hooks/useMissionControl";
+import { startOrchestrator, stopOrchestrator, sendHumanOverride } from "@/lib/api";
+import { useState } from "react";
 
 export const Route = createFileRoute("/orchestrator")({
   head: () => ({
@@ -16,203 +20,247 @@ export const Route = createFileRoute("/orchestrator")({
 });
 
 function Orchestrator() {
+  const { latest, status } = useMissionControl();
+  const [loading, setLoading] = useState(false);
+  const [overrideNote, setOverrideNote] = useState("");
+
+  const cons = latest.consensus;
+  const pVote = cons?.votes?.perception || "PROCEED";
+  const cVote = cons?.votes?.cognition || "HOLD";
+  const aVote = cons?.votes?.action || "RECONFIGURE";
+  const finalAction = cons?.final_action || "PROCEED_SLOW";
+  const autoLevel = cons?.required_autonomy_level || "AUTONOMOUS";
+  const isOrchRunning = status?.orchestrator_running || false;
+
+  const handleToggleOrchestrator = async () => {
+    setLoading(true);
+    try {
+      if (isOrchRunning) {
+        await stopOrchestrator();
+      } else {
+        await startOrchestrator();
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOverride = async (level: string, action: string) => {
+    setLoading(true);
+    try {
+      await sendHumanOverride(level, action, overrideNote || `Commander manual intervention (Level ${level})`);
+      setOverrideNote("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="font-body-md text-body-md min-h-screen flex bg-surface">
+    <div className="font-body-md text-ink-charcoal min-h-screen flex bg-paper-surface selection:bg-lacquer-red selection:text-white">
       <SideNav />
-      <header className="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 bg-paper-surface dark:bg-ink-charcoal border-b border-on-surface-variant flex items-center justify-between px-gutter py-4 z-40">
-<div className="flex items-center gap-4">
+      <div className="md:ml-64 flex-1 flex flex-col h-full overflow-hidden">
+        {/* Top Live Health Header */}
+        <SystemHealthHeader title="Autonomous Consensus & Policy Arbitration" />
 
-<div className="flex items-center gap-4">
-<span className="font-label-caps text-label-caps text-on-surface font-bold uppercase">ARMSTRONG PROTOCOL</span>
-<div className="flex items-center gap-2">
-<a className="text-on-surface-variant hover:text-lacquer-red transition-all font-label-caps text-label-caps uppercase" href="#">NOMINAL</a>
-<a className="text-on-surface-variant hover:text-lacquer-red transition-all font-label-caps text-label-caps uppercase" href="#">STABLE</a>
-<a className="text-lacquer-red font-bold transition-all font-label-caps text-label-caps uppercase opacity-80" href="#">ACTIVE</a>
-</div>
-</div>
-</div>
-<div className="flex items-center gap-6">
+        <main className="w-full p-margin-desktop flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-12 gap-gutter h-full max-w-container-max mx-auto w-full">
+            
+            {/* Left Column: Voting Matrix & Ladder */}
+            <div className="col-span-12 lg:col-span-8 flex flex-col gap-gutter">
+              
+              {/* Multi-Agent Voting Matrix */}
+              <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter relative overflow-hidden flex flex-col shadow-sm">
+                <header className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="font-label-caps text-xs text-on-surface-variant uppercase tracking-wider font-bold">
+                      Multi-Agent Consensus Matrix
+                    </h2>
+                    <p className="text-xs text-on-surface-variant mt-0.5">
+                      Weighted dynamic arbitration across Perception, Cognition, and Action agents.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleOrchestrator}
+                    disabled={loading}
+                    className={`px-3 py-1.5 rounded font-mono text-xs font-bold border transition-colors ${
+                      isOrchRunning
+                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-800 hover:bg-emerald-500/20"
+                        : "bg-surface-container border-outline-variant text-ink-charcoal hover:bg-surface-container-high"
+                    }`}
+                  >
+                    {isOrchRunning ? "ORCHESTRATOR: ACTIVE" : "START ORCHESTRATOR"}
+                  </button>
+                </header>
 
-<div className="flex items-center gap-4">
-<button className="text-on-surface-variant hover:text-lacquer-red transition-all">
-<span className="material-symbols-outlined">notifications_active</span>
-</button>
-<button className="text-on-surface-variant hover:text-lacquer-red transition-all">
-<span className="material-symbols-outlined">account_circle</span>
-</button>
-</div>
+                <div className="grid grid-cols-3 gap-6 w-full mb-6">
+                  {/* Perception Vote */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-center">
+                      <div className="font-label-caps text-xs font-bold text-on-surface uppercase">Perception</div>
+                      <div className="font-mono text-[11px] text-on-surface-variant">Weight: 30%</div>
+                    </div>
+                    <div className="w-full bg-surface-container-low px-3 py-2.5 border border-outline-variant rounded-lg flex justify-center items-center">
+                      <span className="font-mono text-xs font-bold text-moss-accent truncate">{pVote}</span>
+                    </div>
+                  </div>
 
-<button className="px-4 py-1.5 border border-lacquer-red text-lacquer-red font-label-caps text-label-caps rounded uppercase hover:bg-lacquer-red hover:text-white transition-colors duration-150">
-                EMERGENCY STOP
-            </button>
-</div>
-</header>
+                  {/* Cognition Vote */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-center">
+                      <div className="font-label-caps text-xs font-bold text-on-surface uppercase">Cognition</div>
+                      <div className="font-mono text-[11px] text-on-surface-variant">Weight: 40%</div>
+                    </div>
+                    <div className="w-full bg-surface-container-low px-3 py-2.5 border border-lacquer-red/40 rounded-lg flex justify-center items-center">
+                      <span className="font-mono text-xs font-bold text-lacquer-red truncate">{cVote}</span>
+                    </div>
+                  </div>
 
-<main className="ml-64 mt-16 w-full p-margin-desktop flex-1 flex flex-col bg-surface">
-<div className="grid grid-cols-12 gap-gutter h-full max-w-container-max mx-auto w-full">
+                  {/* Action Vote */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-center">
+                      <div className="font-label-caps text-xs font-bold text-on-surface uppercase">Action</div>
+                      <div className="font-mono text-[11px] text-on-surface-variant">Weight: 30%</div>
+                    </div>
+                    <div className="w-full bg-surface-container-low px-3 py-2.5 border border-outline-variant rounded-lg flex justify-center items-center">
+                      <span className="font-mono text-xs font-bold text-ink-charcoal truncate">{aVote}</span>
+                    </div>
+                  </div>
+                </div>
 
-<div className="col-span-12 lg:col-span-8 flex flex-col gap-gutter">
+                {/* Final Consensus Output Box */}
+                <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/60 flex justify-between items-center">
+                  <div>
+                    <div className="text-[10px] font-label-caps text-on-surface-variant uppercase font-bold">Arbitrated Decision</div>
+                    <div className="font-telemetry-lg text-xl font-bold text-lacquer-red font-mono">{finalAction}</div>
+                    <div className="text-xs text-on-surface-variant mt-1">
+                      {cons?.reasoning || "All agents resolved consensus on closed-loop guidance."}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-mono uppercase px-2 py-1 rounded bg-surface-container font-bold text-on-surface">
+                      {cons?.consensus_reached ? "UNANIMOUS" : "SAFETY RESOLVED"}
+                    </span>
+                  </div>
+                </div>
+              </section>
 
-<section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter relative overflow-hidden flex flex-col shadow-sm">
-<header className="flex justify-between items-center mb-6">
-<h2 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Multi-Agent Voting Matrix</h2>
-<span className="font-telemetry-data text-telemetry-data text-on-surface-variant">CYC: 84992.A</span>
-</header>
-<div className="flex flex-col flex-1 items-center justify-center relative">
+              {/* Graduated Autonomy Ladder Status */}
+              <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-sm">
+                <h3 className="font-label-caps text-xs text-ink-charcoal uppercase font-bold tracking-wider mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-lacquer-red">stairs</span>
+                  Graduated Autonomy Ladder
+                </h3>
 
-<div className="grid grid-cols-3 gap-8 w-full mb-8 relative z-10">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs mb-4">
+                  <div className={`p-3 rounded-lg border flex flex-col justify-between ${
+                    autoLevel === "AUTONOMOUS" ? "bg-emerald-500/15 border-emerald-500/50 font-bold" : "bg-surface-container-low border-outline-variant/40 opacity-70"
+                  }`}>
+                    <div className="text-[10px] uppercase">Level 0</div>
+                    <div className="text-emerald-900 mt-1">AUTONOMOUS</div>
+                    <div className="text-[10px] text-on-surface-variant mt-1">JG &lt; 10°, In-Dist</div>
+                  </div>
 
-<div className="flex flex-col items-center gap-3">
-<div className="text-center">
-<div className="font-label-caps text-label-caps text-on-surface">Perception</div>
-<div className="font-telemetry-data text-telemetry-data text-on-surface-variant text-[12px]">Weight: 30%</div>
-</div>
-<div className="w-full bg-surface-container px-4 py-3 border border-outline-variant rounded-lg flex justify-center items-center shadow-sm">
-<span className="font-telemetry-data text-telemetry-data text-moss-accent">PROCEED</span>
-</div>
-</div>
+                  <div className={`p-3 rounded-lg border flex flex-col justify-between ${
+                    autoLevel === "acknowledge" ? "bg-amber-500/15 border-amber-500/50 font-bold" : "bg-surface-container-low border-outline-variant/40 opacity-70"
+                  }`}>
+                    <div className="text-[10px] uppercase">Level 1</div>
+                    <div className="text-amber-900 mt-1">ACKNOWLEDGE</div>
+                    <div className="text-[10px] text-on-surface-variant mt-1">JG 10°-20°</div>
+                  </div>
 
-<div className="flex flex-col items-center gap-3">
-<div className="text-center">
-<div className="font-label-caps text-label-caps text-on-surface">Cognition</div>
-<div className="font-telemetry-data text-telemetry-data text-on-surface-variant text-[12px]">Weight: 40%</div>
-</div>
-<div className="w-full bg-surface-container px-4 py-3 border-2 border-lacquer-red rounded-lg flex justify-center items-center shadow-sm">
-<span className="font-telemetry-data text-telemetry-data text-lacquer-red font-bold">HOLD</span>
-</div>
-</div>
+                  <div className={`p-3 rounded-lg border flex flex-col justify-between ${
+                    autoLevel === "modify" ? "bg-orange-500/15 border-orange-500/50 font-bold" : "bg-surface-container-low border-outline-variant/40 opacity-70"
+                  }`}>
+                    <div className="text-[10px] uppercase">Level 2</div>
+                    <div className="text-orange-900 mt-1">MODIFY</div>
+                    <div className="text-[10px] text-on-surface-variant mt-1">JG 20°-30°</div>
+                  </div>
 
-<div className="flex flex-col items-center gap-3">
-<div className="text-center">
-<div className="font-label-caps text-label-caps text-on-surface">Action</div>
-<div className="font-telemetry-data text-telemetry-data text-on-surface-variant text-[12px]">Weight: 30%</div>
-</div>
-<div className="w-full bg-surface-container px-4 py-3 border border-outline-variant rounded-lg flex justify-center items-center shadow-sm">
-<span className="font-telemetry-data text-telemetry-data text-on-surface">RECONFIGURE</span>
-</div>
-</div>
-</div>
+                  <div className={`p-3 rounded-lg border flex flex-col justify-between ${
+                    autoLevel === "replace" || autoLevel === "reject" ? "bg-lacquer-red/15 border-lacquer-red/50 font-bold" : "bg-surface-container-low border-outline-variant/40 opacity-70"
+                  }`}>
+                    <div className="text-[10px] uppercase">Level 3/4</div>
+                    <div className="text-lacquer-red mt-1">REPLACE</div>
+                    <div className="text-[10px] text-on-surface-variant mt-1">OOD / Physics Jump</div>
+                  </div>
+                </div>
 
-<div className="flex justify-between w-3/4 mb-4 opacity-50 relative z-0">
-<svg className="w-full h-8" fill="none" preserveAspectRatio="none" stroke="currentColor" strokeWidth="1" viewBox="0 0 100 100">
-<path className="text-outline-variant" d="M 16 0 C 16 50, 50 50, 50 100" />
-<path className="text-lacquer-red" d="M 50 0 L 50 100" strokeDasharray="4" strokeWidth="2" />
-<path className="text-outline-variant" d="M 84 0 C 84 50, 50 50, 50 100" />
-</svg>
-</div>
+                <div className="p-3 bg-surface-container-low rounded border border-outline-variant/40 text-xs font-mono text-on-surface-variant">
+                  Active Reason: {cons?.autonomy_reasons && cons.autonomy_reasons.length > 0 ? cons.autonomy_reasons.join(" | ") : "Evidence metrics within nominal autonomous threshold envelope."}
+                </div>
+              </section>
+            </div>
 
-<div className="w-2/3 bg-surface-container-high border-2 border-moss-accent rounded-lg p-6 flex flex-col items-center justify-center relative z-10 shadow-sm">
-<span className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-2">Final Consensus</span>
-<span className="font-headline-md text-headline-md text-moss-accent tracking-wider font-bold">PROCEED_SLOW</span>
-</div>
-</div>
-</section>
+            {/* Right Column: Live Armstrong Protocol Controls */}
+            <div className="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+              <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter shadow-sm flex flex-col justify-between h-full">
+                <div>
+                  <h3 className="font-label-caps text-xs text-ink-charcoal uppercase font-bold tracking-wider mb-2 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-lacquer-red">shield_with_heart</span>
+                    Armstrong Protocol Overrides
+                  </h3>
+                  <p className="text-xs text-on-surface-variant mb-4">
+                    Direct manual intervention commands dispatched to state bus.
+                  </p>
 
-<section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter flex flex-col shadow-sm">
-<header className="flex justify-between items-center mb-8">
-<h2 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Autonomy Ladder Context</h2>
-<span className="px-2 py-1 bg-surface-container-low rounded border border-outline-variant font-telemetry-data text-[12px] text-on-surface-variant">REQ_LVL: 2</span>
-</header>
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="Operator intervention rationale..."
+                      value={overrideNote}
+                      onChange={(e) => setOverrideNote(e.target.value)}
+                      className="w-full text-xs font-mono p-2.5 rounded bg-surface-container border border-outline-variant text-ink-charcoal focus:outline-none focus:border-lacquer-red"
+                    />
+                  </div>
 
-<div className="flex items-center justify-between w-full mb-10 px-4 relative">
+                  <div className="flex flex-col gap-2.5 font-mono text-xs">
+                    <button
+                      onClick={() => handleOverride("acknowledge", "proceed_slow")}
+                      disabled={loading}
+                      className="w-full p-2.5 rounded bg-surface-container border border-outline-variant hover:border-amber-600 hover:text-amber-800 transition-colors text-left flex justify-between items-center font-bold"
+                    >
+                      <span>L1: ACKNOWLEDGE (PROCEED_SLOW)</span>
+                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    </button>
 
-<div className="absolute top-1/2 left-8 right-8 h-px bg-outline-variant -z-10"></div>
+                    <button
+                      onClick={() => handleOverride("modify", "hold_position")}
+                      disabled={loading}
+                      className="w-full p-2.5 rounded bg-surface-container border border-outline-variant hover:border-orange-600 hover:text-orange-800 transition-colors text-left flex justify-between items-center font-bold"
+                    >
+                      <span>L2: MODIFY (HOLD_POSITION)</span>
+                      <span className="material-symbols-outlined text-[16px]">tune</span>
+                    </button>
 
-<div className="flex flex-col items-center gap-2 bg-surface-container-lowest px-2">
-<div className="w-3 h-3 rounded-full bg-surface-container-low border border-outline-variant"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">AUTONOMOUS</span>
-</div>
+                    <button
+                      onClick={() => handleOverride("replace", "reconfigure_power")}
+                      disabled={loading}
+                      className="w-full p-2.5 rounded bg-surface-container border border-outline-variant hover:border-lacquer-red hover:text-lacquer-red transition-colors text-left flex justify-between items-center font-bold"
+                    >
+                      <span>L3: REPLACE (RECONFIGURE_POWER)</span>
+                      <span className="material-symbols-outlined text-[16px]">sync_problem</span>
+                    </button>
 
-<div className="flex flex-col items-center gap-2 bg-surface-container-lowest px-2 scale-110 transform transition-transform">
-<div className="w-4 h-4 rounded-full bg-lacquer-red border-2 border-white shadow-sm animate-pulse"></div>
-<span className="font-label-caps text-label-caps text-lacquer-red font-bold">ACKNOWLEDGE</span>
-</div>
+                    <button
+                      onClick={() => handleOverride("reject", "retreat_safely")}
+                      disabled={loading}
+                      className="w-full p-3 rounded bg-lacquer-red text-white hover:bg-primary transition-colors text-left flex justify-between items-center font-bold shadow-sm"
+                    >
+                      <span>L4: EMERGENCY RETREAT / ABORT</span>
+                      <span className="material-symbols-outlined text-[18px]">emergency</span>
+                    </button>
+                  </div>
+                </div>
 
-<div className="flex flex-col items-center gap-2 bg-surface-container-lowest px-2">
-<div className="w-3 h-3 rounded-full bg-surface-container-low border border-outline-variant"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">MODIFY</span>
-</div>
+                <div className="mt-4 pt-4 border-t border-outline-variant/60 text-[11px] font-mono text-on-surface-variant">
+                  All manual operator overrides are cryptographically timestamped and appended to the SHA-256 decision ledger.
+                </div>
+              </section>
+            </div>
 
-<div className="flex flex-col items-center gap-2 bg-surface-container-lowest px-2">
-<div className="w-3 h-3 rounded-full bg-surface-container-low border border-outline-variant"></div>
-<span className="font-label-caps text-label-caps text-on-surface-variant">REPLACE</span>
-</div>
-</div>
-
-<div className="flex flex-col gap-3 border-t border-outline-variant pt-6">
-<span className="font-label-caps text-label-caps text-on-surface-variant uppercase">Escalation Triggers</span>
-<div className="flex flex-wrap gap-3">
-<div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-lacquer-red bg-lacquer-red/10">
-<span className="material-symbols-outlined text-[14px] text-lacquer-red">warning</span>
-<span className="font-telemetry-data text-[13px] text-lacquer-red">out-of-distribution input</span>
-</div>
-<div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-error bg-error/10">
-<span className="material-symbols-outlined text-[14px] text-error">science</span>
-<span className="font-telemetry-data text-[13px] text-error">physics cross-check failed</span>
-</div>
-</div>
-</div>
-</section>
-</div>
-
-<div className="col-span-12 lg:col-span-4 flex flex-col gap-gutter h-full">
-<section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter flex-1 flex flex-col shadow-sm">
-<header className="flex items-center gap-3 mb-6 pb-4 border-b border-outline-variant">
-<span className="material-symbols-outlined text-lacquer-red" style={{fontVariationSettings: "'FILL' 1"}}>gavel</span>
-<h2 className="font-headline-md text-headline-md text-on-surface uppercase tracking-tight">Armstrong Protocol</h2>
-</header>
-
-<div className="flex flex-col gap-3 mb-8">
-<button className="w-full flex flex-col items-start p-4 rounded-lg border border-outline-variant bg-surface-container-low hover:border-moss-accent hover:bg-surface-container-high transition-all duration-150 group text-left">
-<span className="font-label-caps text-label-caps text-on-surface group-hover:text-moss-accent transition-colors">AUTONOMOUS</span>
-<span className="font-telemetry-data text-[12px] text-on-surface-variant mt-1">System holds full operational control.</span>
-</button>
-<button className="w-full flex flex-col items-start p-4 rounded-lg border-2 border-lacquer-red bg-lacquer-red/5 hover:bg-lacquer-red/10 transition-all duration-150 group text-left relative overflow-hidden">
-<span className="font-label-caps text-label-caps text-lacquer-red relative z-10 flex items-center justify-between w-full font-bold">
-                                ACKNOWLEDGE
-                                <span className="material-symbols-outlined text-[16px] animate-bounce">arrow_forward</span>
-</span>
-<span className="font-telemetry-data text-[12px] text-on-surface mt-1 relative z-10">Operator must confirm current plan.</span>
-</button>
-<button className="w-full flex flex-col items-start p-4 rounded-lg border border-outline-variant bg-surface-container-low hover:border-moss-accent hover:bg-surface-container-high transition-all duration-150 group text-left">
-<span className="font-label-caps text-label-caps text-on-surface group-hover:text-moss-accent transition-colors">MODIFY</span>
-<span className="font-telemetry-data text-[12px] text-on-surface-variant mt-1">Operator adjusts plan parameters.</span>
-</button>
-<button className="w-full flex flex-col items-start p-4 rounded-lg border border-outline-variant bg-surface-container-low hover:border-error hover:bg-surface-container-high transition-all duration-150 group text-left">
-<span className="font-label-caps text-label-caps text-on-surface group-hover:text-error transition-colors">REPLACE</span>
-<span className="font-telemetry-data text-[12px] text-on-surface-variant mt-1">Operator assumes manual control.</span>
-</button>
-</div>
-
-<div className="mt-auto pt-6 border-t border-outline-variant">
-<h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-4">Recent Overrides</h3>
-<div className="flex flex-col gap-2 font-telemetry-data text-[13px] text-on-surface-variant">
-<div className="flex justify-between items-center py-1 border-b border-outline-variant">
-<span><span className="text-on-surface">14:02:41.09</span> - MANUAL_ACK</span>
-<span className="text-moss-accent font-bold">SUCCESS</span>
-</div>
-<div className="flex justify-between items-center py-1 border-b border-outline-variant">
-<span><span className="text-on-surface">11:15:22.40</span> - PARAM_MOD</span>
-<span className="text-moss-accent font-bold">SUCCESS</span>
-</div>
-<div className="flex justify-between items-center py-1 border-b border-outline-variant">
-<span><span className="text-on-surface">09:44:10.12</span> - FULL_REPLACE</span>
-<span className="text-lacquer-red font-bold">RESOLVED</span>
-</div>
-<div className="flex justify-between items-center py-1 border-b border-outline-variant">
-<span><span className="text-on-surface">04:12:05.99</span> - MANUAL_ACK</span>
-<span className="text-moss-accent font-bold">SUCCESS</span>
-</div>
-<div className="flex justify-between items-center py-1">
-<span><span className="text-on-surface">01:59:30.01</span> - MANUAL_ACK</span>
-<span className="text-moss-accent font-bold">SUCCESS</span>
-</div>
-</div>
-</div>
-</section>
-</div>
-</div>
-</main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
