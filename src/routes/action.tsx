@@ -162,10 +162,10 @@ EMERGENCY STOP
 
 <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
 <defs>
-<lineargradient id="lineGrad" x1="0" x2="1" y1="0" y2="0">
+<linearGradient id="lineGrad" x1="0" x2="1" y1="0" y2="0">
 <stop offset="0%" stopColor="#5C6300" stopOpacity="0.8" />
 <stop offset="100%" stopColor="#5C6300" stopOpacity="0.1" />
-</lineargradient>
+</linearGradient>
 </defs>
 <path d="M 0,150 Q 150,150 300,10" fill="none" stroke="url(#lineGrad)" strokeWidth="0.5" />
 <path d="M 0,150 Q 150,150 300,30" fill="none" stroke="url(#lineGrad)" strokeWidth="0.5" />
