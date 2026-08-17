@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SideNav } from "@/components/SideNav";
+import { SakuraShader } from "@/components/SakuraShader";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -19,13 +20,7 @@ function Index() {
   return (
     <div className="font-body-md antialiased overflow-x-hidden min-h-screen relative">
       <SideNav />
-      <div className="fixed inset-0 z-0 opacity-40 pointer-events-none">
-
-<div className="absolute inset-0 w-full h-full" style={{display: "block"}}>
-<canvas id="shader-canvas-ANIMATION_34" style={{display: "block", width: "100%", height: "100%"}}></canvas>
-</div>
-
-</div>
+      <SakuraShader />
 
 
 
